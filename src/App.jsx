@@ -44,6 +44,7 @@ export default function App() {
   const [singleImageUrl, setSingleImageUrl] = useState('');
   const [plots, setPlots] = useState([]);
   const [graphMeta, setGraphMeta] = useState(null);
+  const [pthFile, setPthFile] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -82,6 +83,8 @@ export default function App() {
 
     setIsShowingAirfoil(true);
     setPlots([]);
+    setPthFile(null);
+
     try {
       const response = await fetch(`${GRAPH_API_URL}/generate-graph`, {
         method: 'POST',
@@ -101,12 +104,28 @@ export default function App() {
       }
 
       setGraphMeta(data);
+
       if (data.plot_url) {
         setSingleImageUrl(`${GRAPH_API_URL}${data.plot_url}`);
       } else {
         throw new Error('API response did not include plot_url');
       }
+
+      if (data.download_url) {
+        const pthResponse = await fetch(`${GRAPH_API_URL}${data.download_url}`);
+        if (!pthResponse.ok) {
+          throw new Error(`Failed to fetch .pth file (status ${pthResponse.status})`);
+        }
+
+        const blob = await pthResponse.blob();
+        const filename = data.download_url.split('/').pop() || `${data.job_id || 'graph'}.pth`;
+        const file = new File([blob], filename, {
+          type: blob.type || 'application/octet-stream',
+        });
+        setPthFile(file);
+      }
     } catch (err) {
+      setPthFile(null);
       alert(`Failed to generate airfoil mesh: ${err.message}`);
     } finally {
       setIsShowingAirfoil(false);
@@ -146,6 +165,7 @@ export default function App() {
 
       setSingleImageUrl('');
       setGraphMeta(null);
+      setPthFile(null);
       setPlots(parsedPlots);
     } catch (err) {
       alert(`Failed to run simulation: ${err.message}`);
@@ -305,6 +325,11 @@ export default function App() {
                 {graphMeta && (
                   <p className="placeholder-subtext" style={{ marginTop: '8px' }}>
                     Nodes: {graphMeta.num_nodes} | Edges: {graphMeta.num_edges}
+                  </p>
+                )}
+                {pthFile && (
+                  <p className="placeholder-subtext" style={{ marginTop: '4px' }}>
+                    Loaded in state: {pthFile.name} ({(pthFile.size / 1024).toFixed(1)} KB)
                   </p>
                 )}
               </div>
