@@ -140,18 +140,34 @@ export default function App() {
 
     setIsSimulating(true);
     try {
-      const response = await fetch(`${MODEL_API_URL}/predict`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          naca_name: airfoil.trim(),
-          aoa: Number(angle),
-          speed: Number(speed),
-          model_id: selectedModel,
-        }),
-      });
+      let response;
+
+      if (pthFile) {
+        const formData = new FormData();
+        formData.append('naca_name', airfoil.trim());
+        formData.append('aoa', String(Number(angle)));
+        formData.append('speed', String(Number(speed)));
+        formData.append('model_id', selectedModel);
+        formData.append('file', pthFile, pthFile.name);
+
+        response = await fetch(`${MODEL_API_URL}/predict`, {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        response = await fetch(`${MODEL_API_URL}/predict`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            naca_name: airfoil.trim(),
+            aoa: Number(angle),
+            speed: Number(speed),
+            model_id: selectedModel,
+          }),
+        });
+      }
 
       const data = await response.json();
       if (!response.ok) {
