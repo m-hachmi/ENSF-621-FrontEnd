@@ -8,6 +8,15 @@ const MODEL_API_URL =
 function extractPredictPlots(data) {
   if (!data) return [];
 
+  if (Array.isArray(data.fields)) {
+    return data.fields
+      .filter((item) => item && typeof item.image === 'string' && item.image.length > 0)
+      .map((item, idx) => ({
+        label: item.label || item.id || `Field ${idx + 1}`,
+        src: item.image,
+      }));
+  }
+
   if (Array.isArray(data.plots)) {
     return data.plots.map((item, idx) =>
       typeof item === 'string'
@@ -54,7 +63,9 @@ export default function App() {
         if (!active || !data) return;
         const list = Array.isArray(data) ? data : data.models;
         if (Array.isArray(list) && list.length > 0) {
-          const ids = list.map((m) => (typeof m === 'string' ? m : m.id || m.name)).filter(Boolean);
+          const ids = list
+            .map((m) => (typeof m === 'string' ? m : m.id || m.name))
+            .filter(Boolean);
           if (ids.length > 0) {
             setModels(ids);
             setSelectedModel((prev) => (ids.includes(prev) ? prev : ids[0]));
@@ -143,6 +154,7 @@ export default function App() {
     try {
       const formData = new FormData();
       formData.append('file', pthFile, pthFile.name);
+      formData.append('model_id', selectedModel);
 
       const response = await fetch(`${MODEL_API_URL}/predict`, {
         method: 'POST',
@@ -161,7 +173,6 @@ export default function App() {
 
       setSingleImageUrl('');
       setGraphMeta(null);
-      setPthFile(null);
       setPlots(parsedPlots);
     } catch (err) {
       alert(`Failed to run simulation: ${err.message}`);
