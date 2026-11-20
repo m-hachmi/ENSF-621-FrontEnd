@@ -134,40 +134,20 @@ export default function App() {
 
   /* ------------HANDLING THE SIMULATION BUTTON CLICK------------------*/
   const handleSimulate = async () => {
-    if (!validateInputs()) {
+    if (!pthFile) {
+      alert('Please generate the airfoil (.pth) first before running simulation');
       return;
     }
 
     setIsSimulating(true);
     try {
-      let response;
+      const formData = new FormData();
+      formData.append('file', pthFile, pthFile.name);
 
-      if (pthFile) {
-        const formData = new FormData();
-        formData.append('naca_name', airfoil.trim());
-        formData.append('aoa', String(Number(angle)));
-        formData.append('speed', String(Number(speed)));
-        formData.append('model_id', selectedModel);
-        formData.append('file', pthFile, pthFile.name);
-
-        response = await fetch(`${MODEL_API_URL}/predict`, {
-          method: 'POST',
-          body: formData,
-        });
-      } else {
-        response = await fetch(`${MODEL_API_URL}/predict`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            naca_name: airfoil.trim(),
-            aoa: Number(angle),
-            speed: Number(speed),
-            model_id: selectedModel,
-          }),
-        });
-      }
+      const response = await fetch(`${MODEL_API_URL}/predict`, {
+        method: 'POST',
+        body: formData,
+      });
 
       const data = await response.json();
       if (!response.ok) {
