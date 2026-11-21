@@ -290,32 +290,42 @@ export default function App() {
                 style={{
                   width: '100%',
                   height: '100%',
-                  overflowX: 'auto',
-                  overflowY: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '10px',
+                  overflowY: 'auto',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: '16px',
+                  padding: '14px',
+                  boxSizing: 'border-box',
+                  alignContent: 'start',
                 }}
               >
                 {plots.map((plot, idx) => (
                   <div
                     key={`${plot.label}-${idx}`}
                     style={{
-                      flex: '0 0 320px',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      borderRadius: '8px',
+                      padding: '8px',
                     }}
                   >
-                    <span className="placeholder-subtext" style={{ marginBottom: '6px' }}>
+                    <span
+                      className="placeholder-subtext"
+                      style={{ marginBottom: '6px', fontWeight: 600 }}
+                    >
                       {plot.label}
                     </span>
                     <img
                       src={plot.src}
                       alt={plot.label}
-                      style={{ width: '100%', maxHeight: '340px', objectFit: 'contain' }}
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        maxHeight: '320px',
+                        objectFit: 'contain',
+                      }}
                     />
                   </div>
                 ))}
