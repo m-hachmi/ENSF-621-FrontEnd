@@ -294,7 +294,7 @@ export default function App() {
                   overflowX: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '20px',
+                  gap: '24px',
                   padding: '16px',
                   boxSizing: 'border-box',
                 }}
