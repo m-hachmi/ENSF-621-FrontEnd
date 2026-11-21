@@ -291,29 +291,28 @@ export default function App() {
                   width: '100%',
                   height: '100%',
                   overflowY: 'auto',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  gap: '16px',
-                  padding: '14px',
+                  overflowX: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '20px',
+                  padding: '16px',
                   boxSizing: 'border-box',
-                  alignContent: 'start',
                 }}
               >
                 {plots.map((plot, idx) => (
                   <div
                     key={`${plot.label}-${idx}`}
                     style={{
+                      width: '100%',
+                      flexShrink: 0,
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      borderRadius: '8px',
-                      padding: '8px',
                     }}
                   >
                     <span
                       className="placeholder-subtext"
-                      style={{ marginBottom: '6px', fontWeight: 600 }}
+                      style={{ marginBottom: '8px', fontWeight: 600 }}
                     >
                       {plot.label}
                     </span>
@@ -322,8 +321,9 @@ export default function App() {
                       alt={plot.label}
                       style={{
                         width: '100%',
+                        maxWidth: '100%',
+                        maxHeight: '520px',
                         height: 'auto',
-                        maxHeight: '320px',
                         objectFit: 'contain',
                       }}
                     />
