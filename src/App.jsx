@@ -1,184 +1,196 @@
 import React, { useEffect, useState } from 'react';
-import './App.css'; 
+import './App.css';
 
+const GRAPH_API_URL = 'https://ensf621-api.onrender.com';
+const MODEL_API_URL =
+  import.meta.env.VITE_API_URL || 'https://tfrddd-quick-fluid-flow-api.hf.space';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+function extractPredictPlots(data) {
+  if (!data) return [];
 
-async function postJSON(path, body) {
-  return send(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-
-async function postForm(path, form) {
-  return send(path, { method: 'POST', body: form });
-}
-
-async function makeGraphFile(body) {
-  const g = await postJSON('/generate-graph?include_edges=false', body);
-  const res = await fetch(`${API_URL}${g.download_url}`);
-  if (!res.ok) throw new Error(`Could not download the graph (HTTP ${res.status})`);
-  return res.blob();
-}
-
-async function send(path, options) {
-  const res = await fetch(`${API_URL}${path}`, options);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const detail = Array.isArray(data.detail)
-      ? data.detail.map((d) => d.msg.replace(/^Value error, /, '')).join('; ')
-      : data.detail;
-    throw new Error(detail || `Request failed (HTTP ${res.status})`);
+  if (Array.isArray(data.fields)) {
+    return data.fields
+      .filter((item) => item && typeof item.image === 'string' && item.image.length > 0)
+      .map((item, idx) => ({
+        label: item.label || item.id || `Field ${idx + 1}`,
+        src: item.image,
+      }));
   }
-  return data;
+
+  if (Array.isArray(data.plots)) {
+    return data.plots.map((item, idx) =>
+      typeof item === 'string'
+        ? { label: `Plot ${idx + 1}`, src: item }
+        : {
+            label: item.label || item.title || item.name || `Plot ${idx + 1}`,
+            src: item.image || item.image_base64 || item.data_url || item.src || '',
+          }
+    );
+  }
+
+  const fields = [
+    ['velocity_x', 'Velocity X'],
+    ['velocity_y', 'Velocity Y'],
+    ['pressure', 'Pressure'],
+    ['turbulent_viscosity', 'Turbulent Viscosity'],
+  ];
+
+  return fields
+    .filter(([key]) => typeof data[key] === 'string' && data[key].length > 0)
+    .map(([key, label]) => ({ label, src: data[key] }));
 }
 
 export default function App() {
   const [angle, setAngle] = useState('');
   const [speed, setSpeed] = useState('');
   const [airfoil, setAirfoil] = useState('');
-  const [models, setModels] = useState([]);
-  const [modelId, setModelId] = useState('');
-  const [loading, setLoading] = useState(null);      
-  const [error, setError] = useState('');
-  const [preview, setPreview] = useState(null);     
-  const [result, setResult] = useState(null);        
-  const [field, setField] = useState(0);            
-  const [compareId, setCompareId] = useState('');
-  const [comparison, setComparison] = useState(null);
 
+  const [models, setModels] = useState(['gnn', 'pinn']);
+  const [selectedModel, setSelectedModel] = useState('gnn');
 
-  /* ------------HANDLING THE SIMULATION BUTTON CLICK------------------*/
-    /* ------------ LOAD THE LIST OF MODELS WHEN THE PAGE OPENS ------------ */
+  const [isShowingAirfoil, setIsShowingAirfoil] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [singleImageUrl, setSingleImageUrl] = useState('');
+  const [plots, setPlots] = useState([]);
+  const [graphMeta, setGraphMeta] = useState(null);
+  const [pthFile, setPthFile] = useState(null);
+
   useEffect(() => {
-    fetch(`${API_URL}/models`)
-      .then((r) => r.json())
-      .then((list) => {
-        setModels(list);
-        const first = list.find((m) => m.available);
-        if (first) setModelId(first.id);
+    let active = true;
+    fetch(`${MODEL_API_URL}/models`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data) return;
+        const list = Array.isArray(data) ? data : data.models;
+        if (Array.isArray(list) && list.length > 0) {
+          const ids = list
+            .map((m) => (typeof m === 'string' ? m : m.id || m.name))
+            .filter(Boolean);
+          if (ids.length > 0) {
+            setModels(ids);
+            setSelectedModel((prev) => (ids.includes(prev) ? prev : ids[0]));
+          }
+        }
       })
-      .catch(() => setError(`Cannot reach the API at ${API_URL}. Is the server running?`));
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const inputs = () => {
-    if (!airfoil || angle === '' || speed === '') {
+  const validateInputs = () => {
+    if (!airfoil.trim() || angle === '' || speed === '') {
       alert('All parameters need to be filled');
-      return null;
+      return false;
     }
-    return { naca_name: airfoil, aoa: Number(angle), speed: Number(speed) };
+    return true;
   };
 
-
-
-  /* ------------ SHOW AIRFOIL: user input -> preprocessing -> mesh image ------------ */
+  /* ------------HANDLING THE SHOW AIRFOIL BUTTON CLICK------------------*/
   const handleShowAirfoil = async () => {
-    const body = inputs();
-    if (!body) return;
-    setLoading('preview'); setError(''); setResult(null); setComparison(null);
-    try {
-      setPreview(await postJSON('/preview', body));
-    } catch (e) {
-      setError(e.message); setPreview(null);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-
-
-  /* ------------ RUN SIMULATION: user input -> preprocessing -> model inference -> field images ------------ */
-    const handleSimulate = async () => {
-    const body = inputs();
-    if (!body) return;
-    if (!modelId) {
-      setError('No model is available. Check the API console for the reason.');
+    if (!validateInputs()) {
       return;
     }
-    if (compareId && compareId === modelId) {
-      setError('Choose two different models to compare.');
-      return;
-    }
-    setLoading('predict'); setError('');
+
+    setIsShowingAirfoil(true);
+    setPlots([]);
+    setPthFile(null);
+
     try {
-      const graph = await makeGraphFile(body);
-      const form = new FormData();
-      form.append('file', graph, `naca_${body.naca_name}.pth`);
-      form.append('naca_name', body.naca_name);
-      if (compareId) {
-        form.append('model_a', modelId);
-        form.append('model_b', compareId);
-        setComparison(await postForm('/compare', form));
-        setResult(null);
-      } else {
-        form.append('model_id', modelId);
-        setResult(await postForm('/predict', form));
-        setComparison(null);
+      const response = await fetch(`${GRAPH_API_URL}/generate-graph`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          naca_name: airfoil.trim(),
+          aoa: Number(angle),
+          speed: Number(speed),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || `Request failed with status ${response.status}`);
       }
-      setField(0);
-    } catch (e) {
-      setError(e.message); setResult(null); setComparison(null);
+
+      setGraphMeta(data);
+
+      if (data.plot_url) {
+        setSingleImageUrl(`${GRAPH_API_URL}${data.plot_url}`);
+      } else {
+        throw new Error('API response did not include plot_url');
+      }
+
+      if (data.download_url) {
+        const pthResponse = await fetch(`${GRAPH_API_URL}${data.download_url}`);
+        if (!pthResponse.ok) {
+          throw new Error(`Failed to fetch .pth file (status ${pthResponse.status})`);
+        }
+
+        const blob = await pthResponse.blob();
+        const filename = data.download_url.split('/').pop() || `${data.job_id || 'graph'}.pth`;
+        const file = new File([blob], filename, {
+          type: blob.type || 'application/octet-stream',
+        });
+        setPthFile(file);
+      }
+    } catch (err) {
+      setPthFile(null);
+      alert(`Failed to generate airfoil mesh: ${err.message}`);
     } finally {
-      setLoading(null);
+      setIsShowingAirfoil(false);
     }
   };
 
-  /* ------------ COMPARE MODELS: user input -> preprocessing -> model comparison -> field images ------------ */
-  const handleCompare = async () => {
-    const body = inputs();
-    if (!body) return;
-    if (!modelId) {
-      setError('No model is available. Check the API console for the reason.');
+  /* ------------HANDLING THE SIMULATION BUTTON CLICK------------------*/
+  const handleSimulate = async () => {
+    if (!pthFile) {
+      alert('Please generate the airfoil (.pth) first before running simulation');
       return;
     }
-    if (!compareId) {
-      setError('Choose a second model in "Compare with" to compare.');
-      return;
-    }
-    if (compareId === modelId) {
-      setError('Choose two different models to compare.');
-      return;
-    }
-    setLoading('compare'); setError('');
+
+    setIsSimulating(true);
     try {
-      const graph = await makeGraphFile(body);
-      const form = new FormData();
-      form.append('file', graph, `naca_${body.naca_name}.pth`);
-      form.append('naca_name', body.naca_name);
-      form.append('model_a', modelId);
-      form.append('model_b', compareId);
-      setComparison(await postForm('/compare', form));
-      setResult(null);
-      setField(0);
-    } catch (e) {
-      setError(e.message); setResult(null); setComparison(null);
+      const formData = new FormData();
+      formData.append('file', pthFile, pthFile.name);
+      formData.append('model_id', selectedModel);
+
+      const response = await fetch(`${MODEL_API_URL}/predict`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || `Request failed with status ${response.status}`);
+      }
+
+      const parsedPlots = extractPredictPlots(data);
+      if (parsedPlots.length === 0) {
+        throw new Error('No plots returned from /predict');
+      }
+
+      setSingleImageUrl('');
+      setGraphMeta(null);
+      setPlots(parsedPlots);
+    } catch (err) {
+      alert(`Failed to run simulation: ${err.message}`);
     } finally {
-      setLoading(null);
+      setIsSimulating(false);
     }
   };
 
-  const busy = loading !== null;
-
-
-
-/* NOTE TO SELF: put everything visible in the UI inside the return stateement*/
+  const isBusy = isShowingAirfoil || isSimulating;
 
   return (
-
-
     <div className="outer-container">
       {/* the main container */}
       <div className="square-left">
-        
-
-
-
         {/* Left Side: Control Panel */}
         <div className="left-panel">
           <div className="header">
-            <h1 className="title">Quick Fluid Flow </h1> {/* Placeholder name, we can change it later */}
+            <h1 className="title">Quick Fluid Flow</h1>
             <p className="subtitle">Configure parameters and launch the simulation</p>
           </div>
 
@@ -218,77 +230,51 @@ export default function App() {
             />
           </div>
 
-          {/* MODEL SELECTION (filled from GET /models) */}
+          {/* MODEL SELECTOR */}
           <div className="section">
             <label className="section-label">Model</label>
-            <select value={modelId} onChange={(e) => setModelId(e.target.value)} className="text-input">
-              {models.length === 0 && <option value="">No models loaded</option>}
-              {models.map((m) => (
-                <option key={m.id} value={m.id} disabled={!m.available}>
-                  {m.label}{m.available ? '' : ' (unavailable)'}
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="text-input"
+            >
+              {models.map((modelId) => (
+                <option key={modelId} value={modelId}>
+                  {modelId.toUpperCase()}
                 </option>
-              ))}
-            </select>
-          </div>
-                    {/* COMPARE WITH A SECOND MODEL */}
-          <div className="section">
-            <label className="section-label">Compare with</label>
-            <select value={compareId} onChange={(e) => setCompareId(e.target.value)} className="text-input">
-              <option value="">None</option>
-              {models.filter((m) => m.available && m.id !== modelId).map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
               ))}
             </select>
           </div>
 
           {/* SHOW AIRFOIL BUTTON */}
-          {/* THIS WILL RUN THE USER INPUT PREPROCESSING SCRIPT DISPLAYS THE MATPLOTLIB PICTURE */}
           <div className="section" style={{ marginTop: 'auto' }}>
             <button
               type="button"
               onClick={handleShowAirfoil}
-              disabled={busy}
+              disabled={isBusy}
               className="show-button"
               style={{
-                opacity: busy ? 0.7 : 1,
-                cursor: busy ? 'not-allowed' : 'pointer',
+                opacity: isBusy ? 0.7 : 1,
+                cursor: isBusy ? 'not-allowed' : 'pointer',
               }}
             >
-              {loading === 'preview' ? 'Generating PyG Object' : 'Show airfoil'}
+              {isShowingAirfoil ? 'Generating PyG Object...' : 'Show airfoil'}
             </button>
           </div>
 
-
-
-          {/* SIMULATION BUTTON*/}
-          <div className="section">
+          {/* SIMULATION BUTTON */}
+          <div className="section" style={{ marginTop: 'auto' }}>
             <button
               type="button"
               onClick={handleSimulate}
-              disabled={busy}
+              disabled={isBusy}
               className="simulate-button"
               style={{
-                opacity: busy ? 0.7 : 1,
-                cursor: busy ? 'not-allowed' : 'pointer',
+                opacity: isBusy ? 0.7 : 1,
+                cursor: isBusy ? 'not-allowed' : 'pointer',
               }}
             >
-              {loading === 'predict' ? 'Simulating...' : 'Run Simulation'}
-            </button>
-          </div>
-
-          {/* COMPARE BUTTON */}
-          <div className="section">
-            <button
-              type="button"
-              onClick={handleCompare}
-              disabled={busy}
-              className="simulate-button"
-              style={{
-                opacity: busy ? 0.7 : 1,
-                cursor: busy ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {loading === 'compare' ? 'Comparing...' : 'Compare'}
+              {isSimulating ? 'Simulating...' : 'Run Simulation'}
             </button>
           </div>
         </div>
@@ -296,132 +282,107 @@ export default function App() {
         {/* divider */}
         <div className="divider" />
 
-
-
-
         {/* results */}
-       <div className="right-panel">
-
-          {/* 1. LOADING */}
-          {busy && (
-            <div className="placeholder-box">
-              <div className="spinner" />
-              <p className="placeholder-text">
-                {loading === 'preview'
-                  ? 'Generating the input mesh…'
-                  : loading === 'compare'
-                  ? 'Comparing models…'
-                  : 'Running the model…'}
-              </p>
-              <p className="placeholder-subtext">This takes a few seconds</p>
-            </div>
-          )}
-
-          {/* 2. ERROR */}
-          {!busy && error && (
-            <div className="placeholder-box">
-              <p className="error-text">{error}</p>
-            </div>
-          )}
-          {!busy && !error && comparison && (
-            <div className="results">
-              <div className="field-tabs">
-                {comparison.fields.map((fl, i) => (
-                  <button
-                    key={fl.id}
-                    type="button"
-                    className={`field-tab ${i === field ? 'active' : ''}`}
-                    onClick={() => setField(i)}
+        <div className="right-panel" style={{ minWidth: 0 }}>
+          {plots.length > 0 ? (
+            <div
+              style={{
+                width: '100%',
+                minWidth: 0,
+                maxHeight: '75vh',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '20px',
+                padding: '16px',
+                boxSizing: 'border-box',
+              }}
+            >
+              {plots.map((plot, idx) => (
+                <div
+                  key={`${plot.label}-${idx}`}
+                  style={{
+                    width: '100%',
+                    minWidth: 0,
+                    flexShrink: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span
+                    className="placeholder-subtext"
+                    style={{ marginBottom: '6px', fontWeight: 600 }}
                   >
-                    {fl.label}
-                  </button>
-                ))}
-              </div>
-              <div className="compare-grid">
-                <img className="result-image" src={comparison.fields[field].image_a} alt="Model A" />
-                <img className="result-image" src={comparison.fields[field].image_b} alt="Model B" />
-              </div>
-              <img className="result-image compare-diff" src={comparison.fields[field].image_diff} alt="Difference" />
-              <p className="result-meta">
-                Mean |A − B|: {comparison.fields[field].mean_abs_diff.toPrecision(3)} {comparison.fields[field].units} ·
-                {' '}max |A − B|: {comparison.fields[field].max_abs_diff.toPrecision(3)} {comparison.fields[field].units}
-              </p>
-              <p className="result-meta">
-                A: {comparison.model_a.label} ({comparison.model_a.inference_time_s}s) ·
-                {' '}B: {comparison.model_b.label} ({comparison.model_b.inference_time_s}s)
-                <br />
-                NACA {comparison.naca_name} · {comparison.aoa}° · {comparison.speed} m/s ·
-                {' '}{comparison.num_nodes.toLocaleString()} nodes
-              </p>
-              {comparison.warnings.map((w) => <p key={w} className="warning-text">⚠ {w}</p>)}
-              <p className="note-text">{comparison.note}</p>
-            </div>
-          )}
-
-          {/* 3. PREDICTION (Run Simulation) */}
-          {!busy && !error && !comparison && result && (
-            <div className="results">
-              <div className="field-tabs">
-                {result.fields.map((fl, i) => (
-                  <button
-                    key={fl.id}
-                    type="button"
-                    className={`field-tab ${i === field ? 'active' : ''}`}
-                    onClick={() => setField(i)}
-                  >
-                    {fl.label}
-                  </button>
-                ))}
-              </div>
-              <img className="result-image" src={result.fields[field].image} alt={`${result.fields[field].label} prediction`} />
-              <p className="result-meta">
-                Range: {result.fields[field].min.toPrecision(4)} to {result.fields[field].max.toPrecision(4)} {result.fields[field].units}
-              </p>
-              <p className="result-meta">
-                {result.model_label} · NACA {result.naca_name} · {result.aoa}° · {result.speed} m/s
-                <br />
-                {result.num_nodes.toLocaleString()} nodes · preprocessing {result.preprocessing_time_s}s ·
-                inference {result.inference_time_s}s
-              </p>
-              {result.warnings.map((w) => <p key={w} className="warning-text">⚠ {w}</p>)}
-              <p className="note-text">{result.note}</p>
-            </div>
-          )}
-
-          {/* 4. MESH PREVIEW (Show airfoil) */}
-          {!busy && !error && !comparison && !result && preview && (
-            <div className="results">
-              <img className="result-image" src={preview.image} alt="Input mesh" />
-              <p className="result-meta">
-                {preview.num_nodes.toLocaleString()} nodes ({preview.num_surface_nodes} on the airfoil) ·
-                {' '}{preview.num_edges.toLocaleString()} edges · {preview.preprocessing_time_s}s
-              </p>
-              {preview.warnings.map((w) => <p key={w} className="warning-text">⚠ {w}</p>)}
-            </div>
-          )}
-
-          {/* 5. PLACEHOLDER (nothing run yet) */}
-          {!busy && !error && !comparison && !result && !preview && (
-            <div className="square-image-container">
-              <div className="placeholder-box">
-                <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    {plot.label}
+                  </span>
+                  <img
+                    src={plot.src}
+                    alt={plot.label}
+                    style={{
+                      width: '100%',
+                      maxWidth: '520px',
+                      height: 'auto',
+                      objectFit: 'contain',
+                    }}
                   />
-                </svg>
-                <p className="placeholder-text">ML Model inference will be displayed here</p>
-                <p className="placeholder-subtext">Fill out the simulation parameters first</p>
-              </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="square-image-container">
+              {singleImageUrl ? (
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <img
+                    src={singleImageUrl}
+                    alt={`NACA ${airfoil} mesh at ${angle} deg`}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  />
+                  {graphMeta && (
+                    <p className="placeholder-subtext" style={{ marginTop: '8px' }}>
+                      Nodes: {graphMeta.num_nodes} | Edges: {graphMeta.num_edges}
+                    </p>
+                  )}
+                  {pthFile && (
+                    <p className="placeholder-subtext" style={{ marginTop: '4px' }}>
+                      Loaded in state: {pthFile.name} ({(pthFile.size / 1024).toFixed(1)} KB)
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="placeholder-box">
+                  <svg
+                    className="icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.5"
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <p className="placeholder-text">ML Model inference will be displayed here</p>
+                  <p className="placeholder-subtext">Fill out the simulation parameters first</p>
+                </div>
+              )}
             </div>
           )}
-
-        </div>  
-
+        </div>
       </div>
-
-    </div> /* MAIN CONTAINER ENDS HERE*/
+    </div>
   );
 }
