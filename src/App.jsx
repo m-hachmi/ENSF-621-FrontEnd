@@ -47,9 +47,12 @@ export default function App() {
 
   const [models, setModels] = useState(['gnn', 'pinn']);
   const [selectedModel, setSelectedModel] = useState('gnn');
+  const [modelA, setModelA] = useState('gnn');
+  const [modelB, setModelB] = useState('pinn');
 
   const [isShowingAirfoil, setIsShowingAirfoil] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [isComparing, setIsComparing] = useState(false);
   const [singleImageUrl, setSingleImageUrl] = useState('');
   const [plots, setPlots] = useState([]);
   const [graphMeta, setGraphMeta] = useState(null);
@@ -69,6 +72,10 @@ export default function App() {
           if (ids.length > 0) {
             setModels(ids);
             setSelectedModel((prev) => (ids.includes(prev) ? prev : ids[0]));
+            setModelA((prev) => (ids.includes(prev) ? prev : ids[0]));
+            setModelB((prev) =>
+              ids.includes(prev) ? prev : ids[1] || ids[0]
+            );
           }
         }
       })
@@ -143,6 +150,38 @@ export default function App() {
     }
   };
 
+  const runModelEndpoint = async ({ endpoint, extraFields, errorPrefix }) => {
+    if (!pthFile) {
+      alert('Please generate the airfoil (.pth) first before running simulation');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', pthFile, pthFile.name);
+    Object.entries(extraFields).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+
+    const response = await fetch(`${MODEL_API_URL}${endpoint}`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || `Request failed with status ${response.status}`);
+    }
+
+    const parsedPlots = extractPredictPlots(data);
+    if (parsedPlots.length === 0) {
+      throw new Error(`No plots returned from ${endpoint}`);
+    }
+
+    setSingleImageUrl('');
+    setGraphMeta(null);
+    setPlots(parsedPlots);
+  };
+
   /* ------------HANDLING THE SIMULATION BUTTON CLICK------------------*/
   const handleSimulate = async () => {
     if (!pthFile) {
@@ -152,28 +191,11 @@ export default function App() {
 
     setIsSimulating(true);
     try {
-      const formData = new FormData();
-      formData.append('file', pthFile, pthFile.name);
-      formData.append('model_id', selectedModel);
-
-      const response = await fetch(`${MODEL_API_URL}/predict`, {
-        method: 'POST',
-        body: formData,
+      await runModelEndpoint({
+        endpoint: '/predict',
+        extraFields: { model_id: selectedModel },
+        errorPrefix: 'Failed to run simulation',
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || `Request failed with status ${response.status}`);
-      }
-
-      const parsedPlots = extractPredictPlots(data);
-      if (parsedPlots.length === 0) {
-        throw new Error('No plots returned from /predict');
-      }
-
-      setSingleImageUrl('');
-      setGraphMeta(null);
-      setPlots(parsedPlots);
     } catch (err) {
       alert(`Failed to run simulation: ${err.message}`);
     } finally {
@@ -181,7 +203,36 @@ export default function App() {
     }
   };
 
-  const isBusy = isShowingAirfoil || isSimulating;
+  /* ------------HANDLING THE COMPARE BUTTON CLICK------------------*/
+  const handleCompare = async () => {
+    if (!pthFile) {
+      alert('Please generate the airfoil (.pth) first before comparing models');
+      return;
+    }
+    if (!airfoil.trim()) {
+      alert('Please enter a NACA airfoil name before comparing models');
+      return;
+    }
+
+    setIsComparing(true);
+    try {
+      await runModelEndpoint({
+        endpoint: '/compare',
+        extraFields: {
+          model_a: modelA,
+          model_b: modelB,
+          naca_name: airfoil.trim(),
+        },
+        errorPrefix: 'Failed to compare models',
+      });
+    } catch (err) {
+      alert(`Failed to compare models: ${err.message}`);
+    } finally {
+      setIsComparing(false);
+    }
+  };
+
+  const isBusy = isShowingAirfoil || isSimulating || isComparing;
 
   return (
     <div className="outer-container">
@@ -246,6 +297,37 @@ export default function App() {
             </select>
           </div>
 
+          {/* COMPARE MODEL SELECTORS */}
+          <div className="section">
+            <label className="section-label">Compare Models</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select
+                aria-label="Model A"
+                value={modelA}
+                onChange={(e) => setModelA(e.target.value)}
+                className="text-input"
+              >
+                {models.map((modelId) => (
+                  <option key={`a-${modelId}`} value={modelId}>
+                    A: {modelId.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Model B"
+                value={modelB}
+                onChange={(e) => setModelB(e.target.value)}
+                className="text-input"
+              >
+                {models.map((modelId) => (
+                  <option key={`b-${modelId}`} value={modelId}>
+                    B: {modelId.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* SHOW AIRFOIL BUTTON */}
           <div className="section" style={{ marginTop: 'auto' }}>
             <button
@@ -263,7 +345,7 @@ export default function App() {
           </div>
 
           {/* SIMULATION BUTTON */}
-          <div className="section" style={{ marginTop: 'auto' }}>
+          <div className="section">
             <button
               type="button"
               onClick={handleSimulate}
@@ -275,6 +357,22 @@ export default function App() {
               }}
             >
               {isSimulating ? 'Simulating...' : 'Run Simulation'}
+            </button>
+          </div>
+
+          {/* COMPARE BUTTON */}
+          <div className="section">
+            <button
+              type="button"
+              onClick={handleCompare}
+              disabled={isBusy}
+              className="simulate-button"
+              style={{
+                opacity: isBusy ? 0.7 : 1,
+                cursor: isBusy ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isComparing ? 'Comparing...' : 'Compare'}
             </button>
           </div>
         </div>
