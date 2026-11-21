@@ -5,15 +5,7 @@ const GRAPH_API_URL = 'https://ensf621-api.onrender.com';
 const MODEL_API_URL =
   import.meta.env.VITE_API_URL || 'https://tfrddd-quick-fluid-flow-api.hf.space';
 
-
-
-
-
-
-
-
-  /* GEMINI HELPED WITH THIS ONE (BEGIN)*/
-
+/* GEMINI HELPED WITH THIS ONE (BEGIN)*/
 function extractPredictPlots(data) {
   if (!data) return [];
 
@@ -66,41 +58,6 @@ function extractPredictPlots(data) {
     .map(([key, label]) => ({ label, src: data[key] }));
 }
 /* GEMINI HELPED WITH THIS ONE (END)*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-  if (Array.isArray(data.plots)) {
-    return data.plots.map((item, idx) =>
-      typeof item === 'string'
-        ? { label: `Plot ${idx + 1}`, src: item }
-        : {
-            label: item.label || item.title || item.name || `Plot ${idx + 1}`,
-            src: item.image || item.image_base64 || item.data_url || item.src || '',
-          }
-    );
-  }
-
-  const fields = [
-    ['velocity_x', 'Velocity X'],
-    ['velocity_y', 'Velocity Y'],
-    ['pressure', 'Pressure'],
-    ['turbulent_viscosity', 'Turbulent Viscosity'],
-  ];
-
-  return fields
-    .filter(([key]) => typeof data[key] === 'string' && data[key].length > 0)
-    .map(([key, label]) => ({ label, src: data[key] }));
-}
 
 export default function App() {
   const [angle, setAngle] = useState('');
