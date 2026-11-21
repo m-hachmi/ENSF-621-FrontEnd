@@ -5,17 +5,79 @@ const GRAPH_API_URL = 'https://ensf621-api.onrender.com';
 const MODEL_API_URL =
   import.meta.env.VITE_API_URL || 'https://tfrddd-quick-fluid-flow-api.hf.space';
 
+
+
+
+
+
+
+
+  /* GEMINI HELPED WITH THIS ONE (BEGIN)*/
+
 function extractPredictPlots(data) {
   if (!data) return [];
 
   if (Array.isArray(data.fields)) {
-    return data.fields
-      .filter((item) => item && typeof item.image === 'string' && item.image.length > 0)
-      .map((item, idx) => ({
-        label: item.label || item.id || `Field ${idx + 1}`,
-        src: item.image,
-      }));
+    const plots = [];
+
+    data.fields.forEach((item, idx) => {
+      if (!item) return;
+      const baseLabel = item.label || item.id || `Field ${idx + 1}`;
+
+      if (typeof item.image === 'string' && item.image.length > 0) {
+        plots.push({ label: baseLabel, src: item.image });
+      }
+      if (typeof item.image_a === 'string' && item.image_a.length > 0) {
+        plots.push({ label: `${baseLabel} — Model A`, src: item.image_a });
+      }
+      if (typeof item.image_b === 'string' && item.image_b.length > 0) {
+        plots.push({ label: `${baseLabel} — Model B`, src: item.image_b });
+      }
+      if (typeof item.image_diff === 'string' && item.image_diff.length > 0) {
+        plots.push({ label: `${baseLabel} — Difference`, src: item.image_diff });
+      }
+    });
+
+    if (plots.length > 0) return plots;
   }
+
+  if (Array.isArray(data.plots)) {
+    return data.plots
+      .map((item, idx) =>
+        typeof item === 'string'
+          ? { label: `Plot ${idx + 1}`, src: item }
+          : {
+              label: item.label || item.title || item.name || `Plot ${idx + 1}`,
+              src: item.image || item.image_base64 || item.data_url || item.src || '',
+            }
+      )
+      .filter((p) => typeof p.src === 'string' && p.src.length > 0);
+  }
+
+  const fields = [
+    ['velocity_x', 'Velocity X'],
+    ['velocity_y', 'Velocity Y'],
+    ['pressure', 'Pressure'],
+    ['turbulent_viscosity', 'Turbulent Viscosity'],
+  ];
+
+  return fields
+    .filter(([key]) => typeof data[key] === 'string' && data[key].length > 0)
+    .map(([key, label]) => ({ label, src: data[key] }));
+}
+/* GEMINI HELPED WITH THIS ONE (END)*/
+
+
+
+
+
+
+
+
+
+
+
+
 
   if (Array.isArray(data.plots)) {
     return data.plots.map((item, idx) =>
