@@ -284,100 +284,100 @@ export default function App() {
 
         {/* results */}
         <div className="right-panel">
-          <div className="square-image-container">
-            {plots.length > 0 ? (
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  overflowY: 'auto',
-                  overflowX: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '24px',
-                  padding: '16px',
-                  boxSizing: 'border-box',
-                }}
-              >
-                {plots.map((plot, idx) => (
-                  <div
-                    key={`${plot.label}-${idx}`}
+          {plots.length > 0 ? (
+            <div
+              style={{
+                width: '100%',
+                maxHeight: '85vh',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '24px',
+                padding: '20px',
+                boxSizing: 'border-box',
+              }}
+            >
+              {plots.map((plot, idx) => (
+                <div
+                  key={`${plot.label}-${idx}`}
+                  style={{
+                    width: '100%',
+                    flexShrink: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span
+                    className="placeholder-subtext"
+                    style={{ marginBottom: '8px', fontWeight: 600 }}
+                  >
+                    {plot.label}
+                  </span>
+                  <img
+                    src={plot.src}
+                    alt={plot.label}
                     style={{
                       width: '100%',
-                      flexShrink: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
+                      maxWidth: '720px',
+                      height: 'auto',
+                      objectFit: 'contain',
                     }}
-                  >
-                    <span
-                      className="placeholder-subtext"
-                      style={{ marginBottom: '8px', fontWeight: 600 }}
-                    >
-                      {plot.label}
-                    </span>
-                    <img
-                      src={plot.src}
-                      alt={plot.label}
-                      style={{
-                        width: '100%',
-                        maxWidth: '100%',
-                        maxHeight: '520px',
-                        height: 'auto',
-                        objectFit: 'contain',
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : singleImageUrl ? (
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <img
-                  src={singleImageUrl}
-                  alt={`NACA ${airfoil} mesh at ${angle} deg`}
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                />
-                {graphMeta && (
-                  <p className="placeholder-subtext" style={{ marginTop: '8px' }}>
-                    Nodes: {graphMeta.num_nodes} | Edges: {graphMeta.num_edges}
-                  </p>
-                )}
-                {pthFile && (
-                  <p className="placeholder-subtext" style={{ marginTop: '4px' }}>
-                    Loaded in state: {pthFile.name} ({(pthFile.size / 1024).toFixed(1)} KB)
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="placeholder-box">
-                <svg
-                  className="icon"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
-                </svg>
-                <p className="placeholder-text">ML Model inference will be displayed here</p>
-                <p className="placeholder-subtext">Fill out the simulation parameters first</p>
-              </div>
-            )}
-          </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="square-image-container">
+              {singleImageUrl ? (
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <img
+                    src={singleImageUrl}
+                    alt={`NACA ${airfoil} mesh at ${angle} deg`}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  />
+                  {graphMeta && (
+                    <p className="placeholder-subtext" style={{ marginTop: '8px' }}>
+                      Nodes: {graphMeta.num_nodes} | Edges: {graphMeta.num_edges}
+                    </p>
+                  )}
+                  {pthFile && (
+                    <p className="placeholder-subtext" style={{ marginTop: '4px' }}>
+                      Loaded in state: {pthFile.name} ({(pthFile.size / 1024).toFixed(1)} KB)
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="placeholder-box">
+                  <svg
+                    className="icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.5"
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <p className="placeholder-text">ML Model inference will be displayed here</p>
+                  <p className="placeholder-subtext">Fill out the simulation parameters first</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
