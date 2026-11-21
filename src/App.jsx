@@ -52,6 +52,7 @@ export default function App() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [singleImageUrl, setSingleImageUrl] = useState('');
   const [plots, setPlots] = useState([]);
+  const [activePlot, setActivePlot] = useState(null);
   const [graphMeta, setGraphMeta] = useState(null);
   const [pthFile, setPthFile] = useState(null);
 
@@ -94,6 +95,7 @@ export default function App() {
 
     setIsShowingAirfoil(true);
     setPlots([]);
+    setActivePlot(null);
     setPthFile(null);
 
     try {
@@ -173,6 +175,7 @@ export default function App() {
 
       setSingleImageUrl('');
       setGraphMeta(null);
+      setActivePlot(null);
       setPlots(parsedPlots);
     } catch (err) {
       alert(`Failed to run simulation: ${err.message}`);
@@ -283,32 +286,66 @@ export default function App() {
         <div className="divider" />
 
         {/* results */}
-        <div className="right-panel">
-          <div className="square-image-container">
+        <div className="right-panel" style={{ minWidth: 0, flex: 1 }}>
+          <div
+            className="square-image-container"
+            style={{
+              width: '100%',
+              height: 'auto',
+              minHeight: '520px',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+            }}
+          >
             {plots.length > 0 ? (
               <div
                 style={{
                   width: '100%',
-                  height: '100%',
-                  overflowY: 'auto',
+                  minWidth: 0,
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  gap: '10px',
-                  padding: '8px',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: '16px',
+                  padding: '12px',
+                  boxSizing: 'border-box',
                 }}
               >
                 {plots.map((plot, idx) => (
                   <div
                     key={`${plot.label}-${idx}`}
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+                    style={{
+                      minWidth: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      borderRadius: '10px',
+                      padding: '10px',
+                      boxSizing: 'border-box',
+                    }}
                   >
-                    <span className="placeholder-subtext" style={{ marginBottom: '4px' }}>
+                    <span
+                      className="placeholder-subtext"
+                      style={{
+                        marginBottom: '8px',
+                        fontSize: '0.95rem',
+                        fontWeight: 600,
+                      }}
+                    >
                       {plot.label}
                     </span>
                     <img
                       src={plot.src}
                       alt={plot.label}
-                      style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+                      onClick={() => setActivePlot(plot)}
+                      title="Click to inspect larger"
+                      style={{
+                        width: '100%',
+                        minHeight: '240px',
+                        maxHeight: '420px',
+                        objectFit: 'contain',
+                        cursor: 'zoom-in',
+                        borderRadius: '6px',
+                      }}
                     />
                   </div>
                 ))}
@@ -317,17 +354,31 @@ export default function App() {
               <div
                 style={{
                   width: '100%',
-                  height: '100%',
+                  minHeight: '420px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  padding: '12px',
+                  boxSizing: 'border-box',
                 }}
               >
                 <img
                   src={singleImageUrl}
                   alt={`NACA ${airfoil} mesh at ${angle} deg`}
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  onClick={() =>
+                    setActivePlot({
+                      label: `NACA ${airfoil} Mesh (${angle}° AoA, ${speed} m/s)`,
+                      src: singleImageUrl,
+                    })
+                  }
+                  title="Click to inspect larger"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '65vh',
+                    objectFit: 'contain',
+                    cursor: 'zoom-in',
+                  }}
                 />
                 {graphMeta && (
                   <p className="placeholder-subtext" style={{ marginTop: '8px' }}>
@@ -363,6 +414,73 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Lightbox Modal for inspecting any plot at full size */}
+      {activePlot && (
+        <div
+          onClick={() => setActivePlot(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.82)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '90vw',
+              maxHeight: '88vh',
+              background: '#161b22',
+              borderRadius: '12px',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+              }}
+            >
+              <strong style={{ color: '#fff' }}>{activePlot.label}</strong>
+              <button
+                type="button"
+                onClick={() => setActivePlot(null)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <img
+              src={activePlot.src}
+              alt={activePlot.label}
+              style={{
+                maxWidth: '85vw',
+                maxHeight: '76vh',
+                objectFit: 'contain',
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
