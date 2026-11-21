@@ -283,17 +283,19 @@ export default function App() {
         <div className="divider" />
 
         {/* results */}
-        <div className="right-panel">
+        <div className="right-panel" style={{ minWidth: 0 }}>
           {plots.length > 0 ? (
             <div
               style={{
                 width: '100%',
-                maxHeight: '85vh',
+                minWidth: 0,
+                maxHeight: '75vh',
                 overflowY: 'auto',
+                overflowX: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '24px',
-                padding: '20px',
+                gap: '20px',
+                padding: '16px',
                 boxSizing: 'border-box',
               }}
             >
@@ -302,6 +304,7 @@ export default function App() {
                   key={`${plot.label}-${idx}`}
                   style={{
                     width: '100%',
+                    minWidth: 0,
                     flexShrink: 0,
                     display: 'flex',
                     flexDirection: 'column',
@@ -310,7 +313,7 @@ export default function App() {
                 >
                   <span
                     className="placeholder-subtext"
-                    style={{ marginBottom: '8px', fontWeight: 600 }}
+                    style={{ marginBottom: '6px', fontWeight: 600 }}
                   >
                     {plot.label}
                   </span>
@@ -319,7 +322,7 @@ export default function App() {
                     alt={plot.label}
                     style={{
                       width: '100%',
-                      maxWidth: '720px',
+                      maxWidth: '520px',
                       height: 'auto',
                       objectFit: 'contain',
                     }}
